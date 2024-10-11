@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Email Files</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
+    <title>Mass Email Sender</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
     <h1>Send Bulk Emails</h1>
@@ -12,9 +12,9 @@
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             <ul>
-            {% for category, message in messages %}
-                <li class="{{ category }}">{{ message }}</li>
-            {% endfor %}
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
             </ul>
         {% endif %}
     {% endwith %}
@@ -33,7 +33,7 @@
     </form>
 
     <footer>
-        <p>&copy; 2024 Bulk Mailer Application</p>
+        <p>&copy; 2024 Mass Email Sender</p>
     </footer>
 </body>
 </html>
