@@ -1,112 +1,73 @@
-from flask import Flask, request, render_template, redirect, url_for, flash
+from flask import Flask, render_template, request, flash, redirect, url_for
+from mailgun import Mailgun
 import os
 import time
-import requests
-from contextlib import contextmanager
-from requests.exceptions import RequestException
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # Set your secret key for session management
+app.secret_key = 'your_secret_key'  # Set a secure secret key for session management
 
-# Set the upload folder
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Initialize Mailgun API
+MAILGUN_DOMAIN = "your-mailgun-domain.com"
+MAILGUN_API_KEY = "your-mailgun-api-key"
+mg = Mailgun(MAILGUN_DOMAIN, MAILGUN_API_KEY)
 
-# Create the upload folder if it doesn't exist
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
 
-# Function to send Mailgun email
-def send_mailgun_email(domain, api_key, sender, recipient, subject, html_body):
-    return requests.post(
-        f"https://api.mailgun.net/v3/{domain}/messages",
-        auth=("api", api_key),
-        data={
-            "from": sender,
-            "to": recipient,
-            "subject": subject,
-            "html": html_body
-        }
-    )
-
-@contextmanager
-def timeout(duration):
-    """A context manager to enforce a time limit for code execution."""
-    try:
-        yield
-    except Exception as e:
-        print(f"Error: {e}")
-        raise TimeoutError(f"Execution exceeded {duration} seconds.")
-
-# Flask route to handle file uploads
 @app.route('/', methods=['GET', 'POST'])
-def upload_files():
+def index():
     if request.method == 'POST':
-        # Save uploaded files
-        subject_file = request.files['subject_file']
-        body_file = request.files['body_file']
-        recipients_file = request.files['recipients_file']
-        
-        # Save the files to the upload folder
-        subject_file.save(os.path.join(app.config['UPLOAD_FOLDER'], 'subject.txt'))
-        body_file.save(os.path.join(app.config['UPLOAD_FOLDER'], 'body.html'))
-        recipients_file.save(os.path.join(app.config['UPLOAD_FOLDER'], 'recipients.txt'))
-        
-        flash('Files uploaded successfully. Sending emails...', 'success')
-        return redirect(url_for('send_emails'))
+        # Get files from the form
+        subject_file = request.files.get('subject_file')
+        body_file = request.files.get('body_file')
+        recipients_file = request.files.get('recipients_file')
 
-    return render_template('upload.html')
+        if not subject_file or not body_file or not recipients_file:
+            flash("Please upload all required files (subject.txt, body.html, recipients.txt).", "danger")
+            return redirect(url_for('index'))
 
-# Flask route to send emails
-@app.route('/send', methods=['GET'])
-def send_emails():
-    try:
-        # Load subject and body from uploaded files
-        with open(os.path.join(app.config['UPLOAD_FOLDER'], 'subject.txt'), 'r') as file:
-            subject = file.read().strip()
-
-        with open(os.path.join(app.config['UPLOAD_FOLDER'], 'body.html'), 'r') as file:
-            body_html = file.read().strip()
-
-        with open(os.path.join(app.config['UPLOAD_FOLDER'], 'recipients.txt'), 'r') as file:
-            recipients = [line.strip() for line in file if line.strip()]
-
-    except FileNotFoundError as e:
-        flash(f"Error: {e}", 'danger')
-        return redirect(url_for('upload_files'))
-
-    # Initialize Mailgun
-    domain = "your-mailgun-domain.com"
-    api_key = "your-api-key-here"
-    sender = "you@yourdomain.com"
-
-    # Email sending process
-    sent_count = 0
-    start_time = time.time()
-
-    for recipient in recipients:
+        # Read the uploaded files
         try:
-            with timeout(10):
-                response = send_mailgun_email(domain, api_key, sender, recipient, subject, body_html)
+            subject = subject_file.read().decode('utf-8').strip()
+            body = body_file.read().decode('utf-8').strip()
+            recipients = recipients_file.read().decode('utf-8').strip().splitlines()
+        except Exception as e:
+            flash(f"Error reading uploaded files: {e}", "danger")
+            return redirect(url_for('index'))
 
-                if response.status_code == 200:
-                    sent_count += 1
-                    timestamp = time.strftime("%H:%M:%S")
-                    print(f"[{timestamp}] Sent to: {recipient} | Total sent: {sent_count}")
-                else:
-                    print(f"Failed to send to {recipient}: {response.status_code} - {response.text}")
+        # Send emails
+        sent_count, elapsed_time = send_emails(subject, body, recipients)
 
-        except TimeoutError:
-            print(f"Failed to send to {recipient}: Timeout error")
-        except RequestException as e:
-            print(f"Failed to send to {recipient}: {str(e)}")
+        # Display results
+        flash(f"Successfully sent {sent_count} emails in {elapsed_time:.2f} seconds.", "success")
+        return render_template('result.html', sent_count=sent_count, elapsed_time=elapsed_time)
 
-        time.sleep(2.1)  # Sleep between emails
+    return render_template('index.html')
+
+
+def send_emails(subject, body, recipients):
+    start_time = time.time()
+    sent_count = 0
+
+    for email in recipients:
+        email = email.strip()
+        if not email:
+            continue
+
+        try:
+            mg.send_email(
+                from_email="you@yourdomain.com",
+                to_email=email,
+                subject=subject,
+                html_body=body
+            )
+            sent_count += 1
+        except Exception as e:
+            flash(f"Failed to send to {email}: {e}", "danger")
+
+        time.sleep(2.1)  # Sleep to avoid hitting rate limits (2.1 seconds between emails)
 
     elapsed_time = time.time() - start_time
-    flash(f"Finished sending emails. Total sent: {sent_count}. Time elapsed: {elapsed_time:.2f} seconds.", 'info')
+    return sent_count, elapsed_time
 
-    return render_template('result.html', sent_count=sent_count, elapsed_time=elapsed_time)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
