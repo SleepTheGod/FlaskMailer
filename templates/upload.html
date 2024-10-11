@@ -3,31 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Email Files</title>
+    <title>Email Sending Result</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <h1>Upload Email Files</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <ul>
-            {% for category, message in messages %}
-                <li class="{{ category }}">{{ message }}</li>
-            {% endfor %}
-            </ul>
-        {% endif %}
-    {% endwith %}
+    <h1>Email Sending Complete</h1>
+    <p>Total emails sent: {{ sent_count }}</p>
+    <p>Time elapsed: {{ elapsed_time }} seconds</p>
 
-    <form action="/" method="POST" enctype="multipart/form-data">
-        <label for="subject_file">Subject File (subject.txt):</label>
-        <input type="file" id="subject_file" name="subject_file" required><br><br>
-
-        <label for="body_file">Body File (body.html):</label>
-        <input type="file" id="body_file" name="body_file" required><br><br>
-
-        <label for="recipients_file">Recipients File (recipients.txt):</label>
-        <input type="file" id="recipients_file" name="recipients_file" required><br><br>
-
-        <button type="submit">Upload and Send Emails</button>
-    </form>
+    <a href="/">Go back to upload page</a>
 </body>
 </html>
